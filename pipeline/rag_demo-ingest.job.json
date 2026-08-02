@@ -1,0 +1,34 @@
+{
+  "name": "rag_demo-ingest",
+  "max_concurrent_runs": 1,
+  "timeout_seconds": 3600,
+  "tasks": [
+    {
+      "task_key": "ingest_and_sync",
+      "description": "Auto Loader ingest -> chunk -> MERGE into doc_chunks -> triggered Vector Search sync.",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/pranavvsarma.us@gmail.com/rag_demo/ingest_docs",
+        "base_parameters": {
+          "catalog": "rag_demo",
+          "schema": "docs",
+          "volume_path": "/Volumes/rag_demo/docs/source_files",
+          "vs_endpoint": "rag_demo_endpoint",
+          "checkpoint_path": "/Volumes/rag_demo/docs/pipeline_state/doc_chunks_ingest",
+          "chunk_size": "1000",
+          "chunk_overlap": "150"
+        }
+      }
+    }
+  ],
+  "trigger": {
+    "pause_status": "UNPAUSED",
+    "file_arrival": {
+      "url": "/Volumes/rag_demo/docs/source_files/",
+      "min_time_between_triggers_seconds": 60,
+      "wait_after_last_change_seconds": 30
+    }
+  },
+  "queue": {
+    "enabled": true
+  }
+}

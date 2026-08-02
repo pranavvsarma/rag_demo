@@ -1,0 +1,22 @@
+﻿
+> rag_demo@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.28.1:3000
+- Environments: .env.local
+✓ Ready in 722ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+ GET / 200 in 2.7s (next.js: 2.5s, application-code: 142ms)
+ POST /api/chat 200 in 2.6s (next.js: 267ms, application-code: 2.3s)
+✓ Compiled in 49ms
+ GET / 200 in 97ms (next.js: 23ms, application-code: 74ms)
+ GET / 200 in 70ms (next.js: 8ms, application-code: 62ms)
+ POST /api/chat 200 in 3.4s (next.js: 4ms, application-code: 3.4s)
+[?25h
