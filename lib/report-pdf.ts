@@ -12,8 +12,10 @@ import { renderChartPng, slugify, type LegendItem } from "./chart-export";
 import type { SeriesPoint } from "./table";
 
 interface ReportOptions {
-  /** Dataset name — the report's headline. */
+  /** The report's headline — its saved name, or the dataset name if unsaved. */
   title: string;
+  /** Dataset the report was built from. Omitted when it *is* the headline. */
+  datasetName?: string;
   /** e.g. "bar · sum of revenue by region". */
   subtitle: string;
   /** Column headers for the data table. */
@@ -42,7 +44,16 @@ function formatValue(value: number): string {
 
 export async function downloadReportPdf(
   chartSvg: SVGSVGElement,
-  { title, subtitle, xLabel, yLabel, series, legend = [], fileName }: ReportOptions
+  {
+    title,
+    datasetName,
+    subtitle,
+    xLabel,
+    yLabel,
+    series,
+    legend = [],
+    fileName,
+  }: ReportOptions
 ): Promise<void> {
   // The PDF page is white, so render the chart light regardless of page theme.
   const chart = await renderChartPng(chartSvg, { legend, theme: "light" });
@@ -51,28 +62,37 @@ export async function downloadReportPdf(
   const pageWidth = doc.internal.pageSize.getWidth();
   const contentWidth = pageWidth - MARGIN * 2;
 
+  // Title block, stacked top-down: the report's name, then what it was built
+  // from, then how. `cursor` is the baseline of the line just drawn.
+  let cursor = MARGIN;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.setTextColor(INK);
-  doc.text(title, MARGIN, MARGIN);
+  doc.text(title, MARGIN, cursor);
+
+  if (datasetName) {
+    cursor += 17;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(INK);
+    doc.text(datasetName, MARGIN, cursor);
+  }
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(MUTED);
-  doc.text(subtitle, MARGIN, MARGIN + 18);
-  doc.text(
-    `Generated ${new Date().toLocaleString()}`,
-    MARGIN,
-    MARGIN + 32
-  );
+  cursor += 16;
+  doc.text(subtitle, MARGIN, cursor);
+  cursor += 14;
+  doc.text(`Generated ${new Date().toLocaleString()}`, MARGIN, cursor);
 
   doc.setDrawColor(RULE);
-  doc.line(MARGIN, MARGIN + 44, pageWidth - MARGIN, MARGIN + 44);
+  doc.line(MARGIN, cursor + 12, pageWidth - MARGIN, cursor + 12);
 
   // Scale the chart to the text column, preserving its on-screen aspect ratio.
   const imageWidth = contentWidth;
   const imageHeight = (chart.height / chart.width) * imageWidth;
-  const imageTop = MARGIN + 60;
+  const imageTop = cursor + 28;
   doc.addImage(chart.dataUrl, "PNG", MARGIN, imageTop, imageWidth, imageHeight);
 
   autoTable(doc, {

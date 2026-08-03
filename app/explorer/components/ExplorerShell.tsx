@@ -19,6 +19,8 @@ export function ExplorerShell() {
   const [pendingChart, setPendingChart] = useState<ChartConfig | null>(null);
   // Which saved report is currently rendered in the main pane, if any.
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  // Its name, which headlines the report's PDF export.
+  const [activeReportName, setActiveReportName] = useState<string | null>(null);
   // Bumped on every selection change so DatasetView / ChartBuilder remount and
   // pick up the new starting tab + chart config from their initial state.
   const [viewVersion, setViewVersion] = useState(0);
@@ -28,6 +30,7 @@ export function ExplorerShell() {
     setSelected(dataset);
     setPendingChart(null);
     setActiveReportId(null);
+    setActiveReportName(null);
     setViewVersion((v) => v + 1);
   }
 
@@ -53,6 +56,7 @@ export function ExplorerShell() {
     setSelected(dataset);
     setPendingChart(report.chart);
     setActiveReportId(report.id);
+    setActiveReportName(report.name);
     setViewVersion((v) => v + 1);
   }
 
@@ -64,6 +68,7 @@ export function ExplorerShell() {
         setSelected(null);
         setPendingChart(null);
         setActiveReportId(null);
+        setActiveReportName(null);
       }
       // Reports on that dataset are deleted server-side too.
       await reports.refresh();
@@ -76,7 +81,10 @@ export function ExplorerShell() {
     setActionError(null);
     try {
       await reports.remove(id);
-      if (activeReportId === id) setActiveReportId(null);
+      if (activeReportId === id) {
+        setActiveReportId(null);
+        setActiveReportName(null);
+      }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Could not delete.");
     }
@@ -122,6 +130,7 @@ export function ExplorerShell() {
             key={`${selected.id}:${viewVersion}`}
             dataset={selected}
             pendingChart={pendingChart}
+            pendingReportName={activeReportName}
             onSaveReport={saveReport}
           />
         ) : (

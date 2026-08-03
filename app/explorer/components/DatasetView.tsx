@@ -11,6 +11,8 @@ interface Props {
   dataset: DatasetMeta;
   /** Set when the user opened a saved report; starts on the Visualize tab. */
   pendingChart: ChartConfig | null;
+  /** Name of that saved report, for the exported PDF's headline. */
+  pendingReportName?: string | null;
   onSaveReport: (name: string, chart: ChartConfig) => Promise<unknown>;
 }
 
@@ -19,7 +21,12 @@ interface Props {
  * the starting tab is an initial state rather than an effect: opening a saved
  * report lands directly on the chart.
  */
-export function DatasetView({ dataset, pendingChart, onSaveReport }: Props) {
+export function DatasetView({
+  dataset,
+  pendingChart,
+  pendingReportName,
+  onSaveReport,
+}: Props) {
   const [tab, setTab] = useState<Tab>(pendingChart ? "visualize" : "preview");
 
   // Published by ChartBuilder while a chart is on screen; null on the Preview
@@ -115,6 +122,7 @@ export function DatasetView({ dataset, pendingChart, onSaveReport }: Props) {
           <ChartBuilder
             dataset={dataset}
             initialChart={pendingChart}
+            reportTitle={pendingReportName}
             onSaveReport={onSaveReport}
             onExportReport={registerReport}
           />

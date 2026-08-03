@@ -42,6 +42,8 @@ interface Props {
   dataset: DatasetMeta;
   /** Config to restore when a saved report is opened. */
   initialChart?: ChartConfig | null;
+  /** Name of the opened report, if any — headlines the exported PDF. */
+  reportTitle?: string | null;
   onSaveReport: (name: string, chart: ChartConfig) => Promise<unknown>;
   /**
    * The "Download report" button lives in the header, outside this component,
@@ -59,6 +61,7 @@ interface Props {
 export function ChartBuilder({
   dataset,
   initialChart,
+  reportTitle,
   onSaveReport,
   onExportReport,
 }: Props) {
@@ -181,7 +184,10 @@ export function ChartBuilder({
     withChart("pdf", (svg, points, fileName) =>
       downloadReportPdf(svg, {
         fileName,
-        title: dataset.name,
+        // An ad-hoc chart has no report name, so the dataset is the headline
+        // and repeating it underneath would be noise.
+        title: reportTitle ?? dataset.name,
+        datasetName: reportTitle ? dataset.name : undefined,
         subtitle: `${type} chart · ${measureLabel} by ${x}`,
         xLabel: x,
         yLabel: measureLabel,
