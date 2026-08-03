@@ -5,11 +5,12 @@ import type { Report } from "@/lib/catalog";
 interface Props {
   reports: Report[];
   error: string | null;
+  activeId: string | null;
   onOpen: (report: Report) => void;
   onDelete: (id: string) => void;
 }
 
-export function ReportsList({ reports, error, onOpen, onDelete }: Props) {
+export function ReportsList({ reports, error, activeId, onOpen, onDelete }: Props) {
   return (
     <div className="border-t border-black/10 p-4 dark:border-white/10">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -28,9 +29,22 @@ export function ReportsList({ reports, error, onOpen, onDelete }: Props) {
         </p>
       ) : (
         <ul className="mt-2 max-h-48 space-y-0.5 overflow-y-auto">
-          {reports.map((r) => (
-            <li key={r.id} className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-black/[0.03] dark:hover:bg-white/[0.06]">
-              <button onClick={() => onOpen(r)} className="min-w-0 flex-1 text-left">
+          {reports.map((r) => {
+            const active = r.id === activeId;
+            return (
+            <li
+              key={r.id}
+              className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors ${
+                active
+                  ? "bg-black/[0.06] dark:bg-white/10"
+                  : "hover:bg-black/[0.03] dark:hover:bg-white/[0.06]"
+              }`}
+            >
+              <button
+                onClick={() => onOpen(r)}
+                aria-current={active ? "true" : undefined}
+                className="min-w-0 flex-1 text-left"
+              >
                 <p className="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
                   {r.name}
                 </p>
@@ -61,7 +75,8 @@ export function ReportsList({ reports, error, onOpen, onDelete }: Props) {
                 </svg>
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

@@ -19,6 +19,7 @@ import {
 import type { ChartConfig, DatasetMeta } from "@/lib/catalog";
 import { CHART_TYPES, type ChartType } from "@/lib/chart-types";
 import { downloadChartPng, slugify } from "@/lib/chart-export";
+import { downloadReportPdf } from "@/lib/report-pdf";
 import { AGGS, type Agg, type SeriesPoint } from "@/lib/table";
 
 // Same palette as the chat's ChartMessage, so both surfaces look like one app.
@@ -42,6 +43,12 @@ interface Props {
   /** Config to restore when a saved report is opened. */
   initialChart?: ChartConfig | null;
   onSaveReport: (name: string, chart: ChartConfig) => Promise<unknown>;
+  /**
+   * The "Download report" button lives in the header, outside this component,
+   * but only the chart knows its own SVG and series. Publish the export here
+   * while a chart is on screen; `null` disables the button. Must be stable.
+   */
+  onExportReport?: (run: (() => Promise<void>) | null) => void;
 }
 
 /**
@@ -49,7 +56,12 @@ interface Props {
  * opened report changes, so the controls below initialize from `initialChart`
  * once and never need to re-sync in an effect.
  */
-export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
+export function ChartBuilder({
+  dataset,
+  initialChart,
+  onSaveReport,
+  onExportReport,
+}: Props) {
   const numericColumns = dataset.columns.filter((c) => c.type === "number");
   // Anything can be a category axis; numbers are usually the measure.
   const categoryColumns = dataset.columns.filter((c) => c.type !== "number");
@@ -76,7 +88,7 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
 
   // Wraps the Recharts surface so the export can grab the live <svg>.
   const chartRef = useRef<HTMLDivElement>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"png" | "pdf" | null>(null);
 
   const key = `${dataset.id}|${x}|${y}|${agg}`;
   const isLoading = loaded?.key !== key;
@@ -128,29 +140,67 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
     }
   }
 
-  async function downloadPng() {
+  /** Recharts renders the pie legend as HTML, outside the SVG we export. */
+  function legendItems(points: SeriesPoint[]) {
+    return type === "pie"
+      ? points.map((p, i) => ({
+          label: String(p.x),
+          color: PALETTE[i % PALETTE.length],
+        }))
+      : [];
+  }
+
+  /** Runs `job` with the live chart SVG, flagging progress and failures. */
+  async function withChart(
+    kind: "png" | "pdf",
+    job: (svg: SVGSVGElement, points: SeriesPoint[], baseName: string) => Promise<void>
+  ) {
     const svg = chartRef.current?.querySelector("svg");
-    if (!svg || !series) return;
-    setExporting(true);
+    if (!svg || !series || series.length === 0) return;
+    setExporting(kind);
     try {
-      await downloadChartPng(svg, {
-        fileName: `${slugify(dataset.name)}-${type}-${slugify(measureLabel)}`,
-        // Recharts renders the pie legend as HTML, outside the SVG.
-        legend:
-          type === "pie"
-            ? series.map((p, i) => ({
-                label: String(p.x),
-                color: PALETTE[i % PALETTE.length],
-              }))
-            : [],
-      });
+      await job(
+        svg,
+        series,
+        `${slugify(dataset.name)}-${type}-${slugify(measureLabel)}`
+      );
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not export the chart.");
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
+
+  const downloadPng = () =>
+    withChart("png", (svg, points, fileName) =>
+      downloadChartPng(svg, { fileName, legend: legendItems(points) })
+    );
+
+  const downloadPdf = () =>
+    withChart("pdf", (svg, points, fileName) =>
+      downloadReportPdf(svg, {
+        fileName,
+        title: dataset.name,
+        subtitle: `${type} chart · ${measureLabel} by ${x}`,
+        xLabel: x,
+        yLabel: measureLabel,
+        series: points,
+        legend: legendItems(points),
+      })
+    );
+
+  // `downloadPdf` closes over state that changes every render, so publish a
+  // stable wrapper around a ref instead — the header button never re-registers.
+  const pdfRef = useRef(downloadPdf);
+  pdfRef.current = downloadPdf;
+
+  const canExport = !!series && series.length > 0;
+  useEffect(() => {
+    if (!onExportReport) return;
+    onExportReport(canExport ? () => pdfRef.current() : null);
+    return () => onExportReport(null);
+  }, [onExportReport, canExport]);
 
   const measureLabel = agg === "count" ? "count" : `${agg} of ${y}`;
   const select =
@@ -292,7 +342,7 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
 
         <button
           onClick={downloadPng}
-          disabled={!series || series.length === 0 || exporting}
+          disabled={!series || series.length === 0 || exporting !== null}
           title="Download the chart as a PNG image"
           className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] disabled:opacity-40 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
         >
@@ -311,8 +361,31 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
             <path d="M7 10l5 5 5-5" />
             <path d="M12 15V3" />
           </svg>
-          {exporting ? "Exporting…" : "Download PNG"}
+          {exporting === "png" ? "Exporting…" : "Download chart"}
         </button>
+
+        <a
+          href={`/api/datasets/${dataset.id}/download`}
+          title="Download the underlying dataset as CSV"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M12 15V3" />
+          </svg>
+          Download table
+        </a>
 
         {saveState && (
           <span className="text-xs text-zinc-500 dark:text-zinc-400">{saveState}</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ChartConfig, DatasetMeta } from "@/lib/catalog";
 import { ChartBuilder } from "./ChartBuilder";
 import { PreviewTable } from "./PreviewTable";
@@ -21,6 +21,27 @@ interface Props {
  */
 export function DatasetView({ dataset, pendingChart, onSaveReport }: Props) {
   const [tab, setTab] = useState<Tab>(pendingChart ? "visualize" : "preview");
+
+  // Published by ChartBuilder while a chart is on screen; null on the Preview
+  // tab, where there is no chart to put in the report.
+  const [runReport, setRunReport] = useState<(() => Promise<void>) | null>(null);
+  const [building, setBuilding] = useState(false);
+
+  // Stable, so ChartBuilder's registration effect runs on readiness alone.
+  const registerReport = useCallback(
+    (run: (() => Promise<void>) | null) => setRunReport(() => run),
+    []
+  );
+
+  async function downloadReport() {
+    if (!runReport) return;
+    setBuilding(true);
+    try {
+      await runReport(); // ChartBuilder surfaces any failure in its own banner
+    } finally {
+      setBuilding(false);
+    }
+  }
 
   function tabClass(t: Tab) {
     return `rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -48,9 +69,15 @@ export function DatasetView({ dataset, pendingChart, onSaveReport }: Props) {
           )}
         </div>
 
-        <a
-          href={`/api/datasets/${dataset.id}/download`}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
+        <button
+          onClick={downloadReport}
+          disabled={!runReport || building}
+          title={
+            runReport
+              ? "Download a PDF report with the chart and its data table"
+              : "Build a chart on the Visualize tab first"
+          }
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] disabled:opacity-40 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
         >
           <svg
             width="14"
@@ -63,12 +90,13 @@ export function DatasetView({ dataset, pendingChart, onSaveReport }: Props) {
             strokeLinejoin="round"
             aria-hidden="true"
           >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <path d="M7 10l5 5 5-5" />
-            <path d="M12 15V3" />
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <path d="M14 2v6h6" />
+            <path d="M9 13h6" />
+            <path d="M9 17h6" />
           </svg>
-          Download CSV
-        </a>
+          {building ? "Building…" : "Download report"}
+        </button>
       </header>
 
       <nav className="flex gap-1 px-4 pt-3">
@@ -88,6 +116,7 @@ export function DatasetView({ dataset, pendingChart, onSaveReport }: Props) {
             dataset={dataset}
             initialChart={pendingChart}
             onSaveReport={onSaveReport}
+            onExportReport={registerReport}
           />
         )}
       </div>

@@ -1,7 +1,7 @@
 /**
- * Export a rendered chart as a PNG, with no extra dependencies: clone the live
- * <svg>, rasterize it through an <img> onto a canvas, then hand the canvas blob
- * to the browser as a download.
+ * Rasterize a rendered chart, with no extra dependencies: clone the live <svg>,
+ * draw it through an <img> onto a canvas, and hand back either a download or a
+ * data URL (which the PDF report embeds).
  *
  * Recharts draws the plot into the SVG but renders the legend as sibling HTML,
  * so callers pass the legend items and we paint them onto the canvas below the
@@ -13,12 +13,19 @@ export interface LegendItem {
   color: string;
 }
 
-interface ExportOptions {
-  /** Base name, without extension. */
-  fileName: string;
-  /** Device-pixel multiplier, so the file stays crisp when zoomed. */
+export interface RenderOptions {
+  /** Device-pixel multiplier, so the image stays crisp when zoomed. */
   scale?: number;
   legend?: LegendItem[];
+  /** Defaults to the page theme. The PDF forces light, since its pages are white. */
+  theme?: "auto" | "light";
+}
+
+export interface RenderedChart {
+  dataUrl: string;
+  /** CSS-pixel size, i.e. before `scale` — the aspect ratio to lay out with. */
+  width: number;
+  height: number;
 }
 
 const FONT =
@@ -30,16 +37,19 @@ const LEGEND_SWATCH = 10;
 const LEGEND_GAP = 18;
 const LEGEND_FONT_SIZE = 12;
 
-function isDark(): boolean {
+function isDark(theme: "auto" | "light"): boolean {
   return (
+    theme === "auto" &&
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-color-scheme: dark)").matches
   );
 }
 
 /** A transparent PNG is unreadable wherever it lands, so paint the page's bg. */
-const background = () => (isDark() ? "#18181b" : "#ffffff");
-const foreground = () => (isDark() ? "#e4e4e7" : "#18181b");
+const background = (theme: "auto" | "light") =>
+  isDark(theme) ? "#18181b" : "#ffffff";
+const foreground = (theme: "auto" | "light") =>
+  isDark(theme) ? "#e4e4e7" : "#18181b";
 
 /** A standalone copy of the live SVG: explicit size, namespace and font. */
 function serialize(svg: SVGSVGElement, width: number, height: number): string {
@@ -63,10 +73,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function legendItemWidth(ctx: CanvasRenderingContext2D, label: string): number {
-  return LEGEND_SWATCH + 6 + ctx.measureText(label).width + LEGEND_GAP;
-}
-
 /**
  * Lays legend entries out into rows that fit `width`. Paints them when `paint`
  * is set; either way returns the number of rows, so the canvas can be sized
@@ -77,7 +83,8 @@ function layoutLegend(
   items: LegendItem[],
   width: number,
   top: number,
-  paint: boolean
+  paint: boolean,
+  theme: "auto" | "light"
 ): number {
   ctx.font = `${LEGEND_FONT_SIZE}px ${FONT}`;
   ctx.textBaseline = "middle";
@@ -87,7 +94,8 @@ function layoutLegend(
   let y = top + LEGEND_ROW_HEIGHT / 2;
 
   for (const item of items) {
-    const itemWidth = legendItemWidth(ctx, item.label);
+    const itemWidth =
+      LEGEND_SWATCH + 6 + ctx.measureText(item.label).width + LEGEND_GAP;
     if (x > PADDING && x + itemWidth > width - PADDING) {
       rows += 1;
       x = PADDING;
@@ -96,7 +104,7 @@ function layoutLegend(
     if (paint) {
       ctx.fillStyle = item.color;
       ctx.fillRect(x, y - LEGEND_SWATCH / 2, LEGEND_SWATCH, LEGEND_SWATCH);
-      ctx.fillStyle = foreground();
+      ctx.fillStyle = foreground(theme);
       ctx.fillText(item.label, x + LEGEND_SWATCH + 6, y);
     }
     x += itemWidth;
@@ -105,10 +113,11 @@ function layoutLegend(
   return rows;
 }
 
-export async function downloadChartPng(
+/** The chart as a PNG data URL, legend included. */
+export async function renderChartPng(
   source: SVGSVGElement,
-  { fileName, scale = 2, legend = [] }: ExportOptions
-): Promise<void> {
+  { scale = 2, legend = [], theme = "auto" }: RenderOptions = {}
+): Promise<RenderedChart> {
   const rect = source.getBoundingClientRect();
   const width = Math.max(1, Math.round(rect.width));
   const plotHeight = Math.max(1, Math.round(rect.height));
@@ -117,7 +126,10 @@ export async function downloadChartPng(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas is unavailable in this browser.");
 
-  const rows = legend.length > 0 ? layoutLegend(ctx, legend, width, plotHeight, false) : 0;
+  const rows =
+    legend.length > 0
+      ? layoutLegend(ctx, legend, width, plotHeight, false, theme)
+      : 0;
   const legendHeight = rows > 0 ? rows * LEGEND_ROW_HEIGHT + PADDING : 0;
   const height = plotHeight + legendHeight;
 
@@ -125,7 +137,7 @@ export async function downloadChartPng(
   canvas.height = Math.round(height * scale);
   ctx.scale(scale, scale);
 
-  ctx.fillStyle = background();
+  ctx.fillStyle = background(theme);
   ctx.fillRect(0, 0, width, height);
 
   const img = await loadImage(
@@ -135,21 +147,30 @@ export async function downloadChartPng(
   );
   ctx.drawImage(img, 0, 0, width, plotHeight);
 
-  if (rows > 0) layoutLegend(ctx, legend, width, plotHeight, true);
+  if (rows > 0) layoutLegend(ctx, legend, width, plotHeight, true, theme);
 
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/png")
-  );
-  if (!blob) throw new Error("Could not encode the image.");
+  return { dataUrl: canvas.toDataURL("image/png"), width, height };
+}
 
+/** Hands a blob to the browser as a file download. */
+export function triggerDownload(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${fileName}.png`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+export async function downloadChartPng(
+  source: SVGSVGElement,
+  { fileName, ...options }: RenderOptions & { fileName: string }
+): Promise<void> {
+  const { dataUrl } = await renderChartPng(source, options);
+  const blob = await (await fetch(dataUrl)).blob();
+  triggerDownload(blob, `${fileName}.png`);
 }
 
 /** Filesystem-safe slug for the downloaded file name. */

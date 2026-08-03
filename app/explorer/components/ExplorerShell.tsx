@@ -17,6 +17,8 @@ export function ExplorerShell() {
   const [selected, setSelected] = useState<DatasetMeta | null>(null);
   // Chart config carried over when a saved report is opened.
   const [pendingChart, setPendingChart] = useState<ChartConfig | null>(null);
+  // Which saved report is currently rendered in the main pane, if any.
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
   // Bumped on every selection change so DatasetView / ChartBuilder remount and
   // pick up the new starting tab + chart config from their initial state.
   const [viewVersion, setViewVersion] = useState(0);
@@ -25,6 +27,7 @@ export function ExplorerShell() {
   function select(dataset: DatasetMeta) {
     setSelected(dataset);
     setPendingChart(null);
+    setActiveReportId(null);
     setViewVersion((v) => v + 1);
   }
 
@@ -49,6 +52,7 @@ export function ExplorerShell() {
     }
     setSelected(dataset);
     setPendingChart(report.chart);
+    setActiveReportId(report.id);
     setViewVersion((v) => v + 1);
   }
 
@@ -59,6 +63,7 @@ export function ExplorerShell() {
       if (selected?.id === id) {
         setSelected(null);
         setPendingChart(null);
+        setActiveReportId(null);
       }
       // Reports on that dataset are deleted server-side too.
       await reports.refresh();
@@ -71,6 +76,7 @@ export function ExplorerShell() {
     setActionError(null);
     try {
       await reports.remove(id);
+      if (activeReportId === id) setActiveReportId(null);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Could not delete.");
     }
@@ -98,6 +104,7 @@ export function ExplorerShell() {
         <ReportsList
           reports={reports.reports}
           error={reports.error}
+          activeId={activeReportId}
           onOpen={openReport}
           onDelete={removeReport}
         />
