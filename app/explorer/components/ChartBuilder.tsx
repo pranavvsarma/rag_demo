@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import type { ChartConfig, DatasetMeta } from "@/lib/catalog";
 import { CHART_TYPES, type ChartType } from "@/lib/chart-types";
+import { downloadChartPng, slugify } from "@/lib/chart-export";
 import { AGGS, type Agg, type SeriesPoint } from "@/lib/table";
 
 // Same palette as the chat's ChartMessage, so both surfaces look like one app.
@@ -73,6 +74,10 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
   const [reportName, setReportName] = useState("");
   const [saveState, setSaveState] = useState<string | null>(null);
 
+  // Wraps the Recharts surface so the export can grab the live <svg>.
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+
   const key = `${dataset.id}|${x}|${y}|${agg}`;
   const isLoading = loaded?.key !== key;
   const series = loaded?.series ?? null;
@@ -120,6 +125,30 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
       setSaveState(`Saved "${name}".`);
     } catch (e) {
       setSaveState(e instanceof Error ? e.message : "Could not save the report.");
+    }
+  }
+
+  async function downloadPng() {
+    const svg = chartRef.current?.querySelector("svg");
+    if (!svg || !series) return;
+    setExporting(true);
+    try {
+      await downloadChartPng(svg, {
+        fileName: `${slugify(dataset.name)}-${type}-${slugify(measureLabel)}`,
+        // Recharts renders the pie legend as HTML, outside the SVG.
+        legend:
+          type === "pie"
+            ? series.map((p, i) => ({
+                label: String(p.x),
+                color: PALETTE[i % PALETTE.length],
+              }))
+            : [],
+      });
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not export the chart.");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -200,7 +229,7 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
       )}
 
       <div className="rounded-2xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-zinc-900">
-        <div className="h-72 w-full">
+        <div ref={chartRef} className="h-72 w-full">
           {series && series.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               {type === "bar" ? (
@@ -260,6 +289,31 @@ export function ChartBuilder({ dataset, initialChart, onSaveReport }: Props) {
         >
           Save as report
         </button>
+
+        <button
+          onClick={downloadPng}
+          disabled={!series || series.length === 0 || exporting}
+          title="Download the chart as a PNG image"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] disabled:opacity-40 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M12 15V3" />
+          </svg>
+          {exporting ? "Exporting…" : "Download PNG"}
+        </button>
+
         {saveState && (
           <span className="text-xs text-zinc-500 dark:text-zinc-400">{saveState}</span>
         )}
