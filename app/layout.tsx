@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Databricks RAG · Chat with your docs",
+  title: "Databricks RAG · Chat with your docs and data · Create charts with datasets in Data Explorer",
   description:
-    "A RAG chat app over Databricks Vector Search with a Llama 3.3 70B serving endpoint, built with Next.js and React.",
+    "A RAG chat app over Databricks Vector Search with a Llama 3.3 70B serving endpoint, plus a Data Explorer for attaching datasets and reports to the chat. Built with Next.js and React.",
 };
 
 export default function RootLayout({

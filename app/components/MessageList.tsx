@@ -31,11 +31,12 @@ export function MessageList({
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
         <div>
           <h2 className="text-xl font-semibold text-zinc-800 dark:text-zinc-100">
-            Chat with your documents
+            Chat with your documents and data
           </h2>
           <p className="mt-1 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
-            Answers are grounded in your documents via Databricks Vector Search,
-            with sources shown for every response.
+            Ask about your documents — answers are grounded in Databricks Vector
+            Search, with sources shown every time. Attach a dataset or a saved
+            report from the Data Explorer to ask about your data too.
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2">

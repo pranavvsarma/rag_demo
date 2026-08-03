@@ -81,7 +81,7 @@ export function ChatWindow({
         )}
         <div>
           <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            Databricks RAG · Chat with your docs
+            Databricks RAG · Chat with your docs and data. Create charts with datasets in Data Explorer
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Next.js · React · Databricks Vector Search + Llama 3.3 70B
