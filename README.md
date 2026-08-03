@@ -20,6 +20,20 @@ Frontend is **Next.js 16 (App Router) + React 19**.
 
 ---
 
+## Screenshots
+
+**Chat** (`/`) — grounded answers over your documents, with suggested prompts and
+a paperclip to attach a CSV or a saved report.
+
+![Chat](docs/screenshots/chat.jpg)
+
+**Data Explorer** (`/explorer`) — upload a dataset, preview it, build a chart,
+and save it as a named report. "Ask in chat" opens it back in the chat tab.
+
+![Data Explorer](docs/screenshots/data-explorer.jpg)
+
+---
+
 ## Architecture
 
 ```
