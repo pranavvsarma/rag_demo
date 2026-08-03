@@ -158,7 +158,13 @@ export function ChartBuilder({
     kind: "png" | "pdf",
     job: (svg: SVGSVGElement, points: SeriesPoint[], baseName: string) => Promise<void>
   ) {
-    const svg = chartRef.current?.querySelector("svg");
+    // Recharts renders the legend as HTML *before* the plot in the DOM, and
+    // each legend item carries its own 14x14 <svg> swatch — so a plain
+    // querySelector("svg") exports a coloured square instead of the pie.
+    // The plot is the direct <svg> child of the chart wrapper.
+    const svg =
+      chartRef.current?.querySelector<SVGSVGElement>(".recharts-wrapper > svg") ??
+      chartRef.current?.querySelector<SVGSVGElement>("svg");
     if (!svg || !series || series.length === 0) return;
     setExporting(kind);
     try {
