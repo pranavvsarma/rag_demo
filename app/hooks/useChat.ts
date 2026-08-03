@@ -68,9 +68,14 @@ export function useChat() {
       const ds = await parseCsvFile(file);
       setDataset(ds);
       // Best-effort persistence — charting still works if this fails.
+      // Uploading here also registers the file in the Data Explorer catalog,
+      // so a CSV attached in chat shows up under /explorer.
       try {
         const form = new FormData();
         form.append("file", file);
+        form.append("name", file.name);
+        form.append("description", "Uploaded from chat");
+        form.append("tags", "chat");
         const res = await fetch("/api/datasets", { method: "POST", body: form });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
@@ -80,7 +85,9 @@ export function useChat() {
             })`
           );
         } else {
-          setDatasetNote(`Saved "${ds.name}" to Databricks Volume.`);
+          setDatasetNote(
+            `Saved "${ds.name}" to Databricks — also available in the Data Explorer.`
+          );
         }
       } catch {
         setDatasetNote(`Loaded "${ds.name}" — not saved to Databricks.`);

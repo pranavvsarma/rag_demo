@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { TopNav } from "@/app/components/TopNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,7 +29,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      {/* h-dvh + overflow-hidden so the nav is fixed height and each page
+          scrolls inside the remaining space rather than the document. */}
+      <body className="h-dvh flex flex-col overflow-hidden">
+        <TopNav />
+        {children}
+      </body>
     </html>
   );
 }
