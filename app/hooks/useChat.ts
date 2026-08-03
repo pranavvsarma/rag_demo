@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import {
   parseCsvFile,
+  parseCsvText,
   datasetSummary,
   aggregateSeries,
   computeOp,
@@ -11,6 +12,8 @@ import {
   type Envelope,
   type ChartKind,
 } from "@/lib/csv";
+// Types only — @/lib/catalog itself is server-only (it reads the Volume).
+import type { DatasetMeta, Report } from "@/lib/catalog";
 
 export interface Source {
   id: string;
@@ -36,6 +39,39 @@ export interface Message {
 }
 
 /**
+ * Pull a dataset that already lives in the Data Explorer catalog into the same
+ * in-memory shape a chat upload produces, so both sources feed one code path.
+ *
+ * The catalog listing is used for the metadata rather than
+ * `/api/datasets/[id]`, because that route re-parses the whole file server-side
+ * just to hand back a preview page we don't need here.
+ */
+async function loadCatalogDataset(
+  id: string
+): Promise<{ meta: DatasetMeta; ds: Dataset }> {
+  const listRes = await fetch("/api/datasets", { cache: "no-store" });
+  const list = await listRes.json();
+  if (!listRes.ok) {
+    throw new Error(list?.error ?? `Request failed (${listRes.status})`);
+  }
+  const meta = (list.datasets as DatasetMeta[]).find((d) => d.id === id);
+  if (!meta) throw new Error("That dataset is no longer in the catalog.");
+
+  // The download route always emits CSV, so JSON datasets work here too.
+  const fileRes = await fetch(`/api/datasets/${id}/download`, {
+    cache: "no-store",
+  });
+  if (!fileRes.ok) {
+    const body = await fileRes.json().catch(() => ({}));
+    throw new Error(
+      body?.error ?? `Could not load "${meta.name}" (${fileRes.status})`
+    );
+  }
+
+  return { meta, ds: parseCsvText(await fileRes.text(), meta.name) };
+}
+
+/**
  * Hand-rolled chat hook. Two modes share the same conversation UI:
  *  - No dataset  → doc-RAG streaming path (/api/chat): the first body line is a
  *    JSON blob of retrieval sources, the rest is the answer streamed token by
@@ -51,6 +87,8 @@ export function useChat() {
   const [error, setError] = useState<string | null>(null);
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [datasetNote, setDatasetNote] = useState<string | null>(null);
+  // True while a catalog dataset is being fetched and parsed.
+  const [isLoadingDataset, setIsLoadingDataset] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const patchAssistant = useCallback(
@@ -101,6 +139,75 @@ export function useChat() {
   const clearDataset = useCallback(() => {
     setDataset(null);
     setDatasetNote(null);
+  }, []);
+
+  /**
+   * Attach a dataset the user picked in the Data Explorer. Nothing is uploaded
+   * — the file is already in the Volume, so this only pulls it back down.
+   */
+  const openCatalogDataset = useCallback(async (id: string) => {
+    setError(null);
+    setDatasetNote(null);
+    setIsLoadingDataset(true);
+    try {
+      const { meta, ds } = await loadCatalogDataset(id);
+      setDataset(ds);
+      setDatasetNote(
+        `Loaded "${meta.name}" from the Data Explorer — ask a question or request a chart.`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load that dataset.");
+    } finally {
+      setIsLoadingDataset(false);
+    }
+  }, []);
+
+  /**
+   * Open a saved Explorer report: attach its dataset and drop its chart into
+   * the conversation, so the user can ask follow-up questions about it.
+   */
+  const openReport = useCallback(async (reportId: string) => {
+    setError(null);
+    setDatasetNote(null);
+    setIsLoadingDataset(true);
+    try {
+      const res = await fetch("/api/reports", { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body?.error ?? `Request failed (${res.status})`);
+      }
+      const report = (body.reports as Report[]).find((r) => r.id === reportId);
+      if (!report) throw new Error("That report no longer exists.");
+
+      const { meta, ds } = await loadCatalogDataset(report.datasetId);
+      setDataset(ds);
+
+      // Recomputed here from the real rows, exactly like a charted chat answer,
+      // so the figures match what the Explorer renders.
+      const { x, y, agg, type } = report.chart;
+      const series = aggregateSeries(ds, x, y, agg);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "",
+          chart: {
+            kind: type,
+            labels: series.labels,
+            values: series.values,
+            title: report.name,
+          },
+        },
+      ]);
+      setDatasetNote(
+        `Opened report "${report.name}" on "${meta.name}" — ask a follow-up question.`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open that report.");
+    } finally {
+      setIsLoadingDataset(false);
+    }
   }, []);
 
   // ----- Doc-RAG path (unchanged behavior) -----
@@ -317,7 +424,10 @@ export function useChat() {
     error,
     dataset,
     datasetNote,
+    isLoadingDataset,
     attachDataset,
     clearDataset,
+    openCatalogDataset,
+    openReport,
   };
 }

@@ -1,10 +1,19 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useChat } from "@/app/hooks/useChat";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 
-export function ChatWindow() {
+export function ChatWindow({
+  datasetId,
+  reportId,
+}: {
+  /** From `/?dataset=<id>` — a catalog dataset to attach on arrival. */
+  datasetId?: string;
+  /** From `/?report=<id>` — a saved report to open on arrival. Wins over `datasetId`. */
+  reportId?: string;
+}) {
   const {
     messages,
     input,
@@ -16,9 +25,33 @@ export function ChatWindow() {
     error,
     dataset,
     datasetNote,
+    isLoadingDataset,
     attachDataset,
     clearDataset,
+    openCatalogDataset,
+    openReport,
   } = useChat();
+
+  // Handle a Data Explorer deep link, then strip the param. The strip uses the
+  // native history API, which the App Router picks up without re-running the
+  // server render — a router.replace() here would round-trip for nothing.
+  const handled = useRef<string | null>(null);
+  useEffect(() => {
+    const key = reportId ? `r:${reportId}` : datasetId ? `d:${datasetId}` : null;
+    if (!key) {
+      handled.current = null;
+      return;
+    }
+    if (handled.current === key) return;
+    handled.current = key;
+
+    const opened = reportId
+      ? openReport(reportId)
+      : openCatalogDataset(datasetId!);
+    void opened.finally(() => {
+      window.history.replaceState(null, "", "/");
+    });
+  }, [datasetId, reportId, openCatalogDataset, openReport]);
 
   return (
     <div className="mx-auto flex h-full w-full max-w-3xl flex-1 flex-col">
@@ -65,6 +98,12 @@ export function ChatWindow() {
       {error && (
         <div className="mx-4 mb-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300">
           {error}
+        </div>
+      )}
+
+      {isLoadingDataset && (
+        <div className="mx-4 mb-2 rounded-lg border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-zinc-400">
+          Loading from the Data Explorer…
         </div>
       )}
 

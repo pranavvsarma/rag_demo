@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState } from "react";
 import type { ChartConfig, DatasetMeta } from "@/lib/catalog";
 import { ChartBuilder } from "./ChartBuilder";
@@ -76,34 +77,57 @@ export function DatasetView({
           )}
         </div>
 
-        <button
-          onClick={downloadReport}
-          disabled={!runReport || building}
-          title={
-            runReport
-              ? "Download a PDF report with the chart and its data table"
-              : "Build a chart on the Visualize tab first"
-          }
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] disabled:opacity-40 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href={`/?dataset=${dataset.id}`}
+            title="Open this dataset in chat and ask questions about it"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
           >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <path d="M14 2v6h6" />
-            <path d="M9 13h6" />
-            <path d="M9 17h6" />
-          </svg>
-          {building ? "Building…" : "Download report"}
-        </button>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Ask in chat
+          </Link>
+
+          <button
+            onClick={downloadReport}
+            disabled={!runReport || building}
+            title={
+              runReport
+                ? "Download a PDF report with the chart and its data table"
+                : "Build a chart on the Visualize tab first"
+            }
+            className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-black/[0.04] disabled:opacity-40 dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/[0.06]"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6" />
+              <path d="M9 13h6" />
+              <path d="M9 17h6" />
+            </svg>
+            {building ? "Building…" : "Download report"}
+          </button>
+        </div>
       </header>
 
       <nav className="flex gap-1 px-4 pt-3">

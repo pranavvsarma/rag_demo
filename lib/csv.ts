@@ -56,34 +56,56 @@ export type Envelope = ChartEnvelope | ComputeEnvelope | TextEnvelope;
 
 // ----- Parsing -----
 
+const PARSE_OPTIONS = {
+  header: true,
+  dynamicTyping: true,
+  skipEmptyLines: true,
+} as const;
+
+/** Shape a papaparse result into a typed Dataset. Throws on a headerless CSV. */
+function toDataset(
+  name: string,
+  result: Papa.ParseResult<Record<string, Cell>>
+): Dataset {
+  const rows = result.data.filter((r) => r && Object.keys(r).length > 0);
+  const fields = result.meta.fields ?? [];
+  if (fields.length === 0) {
+    throw new Error("No columns found in CSV.");
+  }
+  return {
+    name,
+    columns: fields.map((field) => ({
+      name: field,
+      type: inferType(rows, field),
+    })),
+    rows,
+  };
+}
+
 /** Parse a CSV File in the browser into a typed Dataset. */
 export function parseCsvFile(file: File): Promise<Dataset> {
   return new Promise((resolve, reject) => {
     Papa.parse<Record<string, Cell>>(file, {
-      header: true,
-      dynamicTyping: true,
-      skipEmptyLines: true,
+      ...PARSE_OPTIONS,
       complete: (result) => {
-        const rows = result.data.filter(
-          (r) => r && Object.keys(r).length > 0
-        );
-        const fields = result.meta.fields ?? [];
-        if (fields.length === 0) {
-          reject(new Error("No columns found in CSV."));
-          return;
+        try {
+          resolve(toDataset(file.name, result));
+        } catch (e) {
+          reject(e);
         }
-        resolve({
-          name: file.name,
-          columns: fields.map((name) => ({
-            name,
-            type: inferType(rows, name),
-          })),
-          rows,
-        });
       },
       error: (err) => reject(err),
     });
   });
+}
+
+/**
+ * Parse CSV text that is already in memory. Used for datasets pulled from the
+ * Data Explorer catalog, which arrive as a string from the download route
+ * rather than as a File picked by the user.
+ */
+export function parseCsvText(text: string, name: string): Dataset {
+  return toDataset(name, Papa.parse<Record<string, Cell>>(text, PARSE_OPTIONS));
 }
 
 /** A column is numeric if every non-empty value in it parses as a number. */
