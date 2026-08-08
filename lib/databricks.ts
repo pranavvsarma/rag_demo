@@ -17,7 +17,10 @@ export interface Source {
   id: string;
   text: string;
   source: string;
+  /** Vector Search similarity score returned by the index. */
   score: number;
+  /** 0-10 usefulness score from the LLM reranker; absent when reranking is off or failed. */
+  rerankScore?: number;
 }
 
 export interface ChatMessage {
@@ -37,7 +40,11 @@ function authHeaders() {
  * built with Databricks-computed (GTE) embeddings, we send `query_text` and
  * Databricks embeds it server-side — the app never touches an embedding model.
  */
-export async function retrieve(query: string, numResults = 5): Promise<Source[]> {
+export async function retrieve(
+  query: string,
+  numResults = 5,
+  signal?: AbortSignal
+): Promise<Source[]> {
   if (!HOST || !TOKEN || !INDEX) {
     throw new Error(
       "Databricks env vars missing. Set DATABRICKS_HOST, DATABRICKS_TOKEN and DATABRICKS_VS_INDEX in .env.local"
@@ -53,6 +60,7 @@ export async function retrieve(query: string, numResults = 5): Promise<Source[]>
       query_text: query,
       num_results: numResults,
     }),
+    signal,
   });
 
   if (!res.ok) {
@@ -121,7 +129,8 @@ export async function chatCompletionStream(
  * response text in one piece so it can parse the model's JSON envelope.
  */
 export async function chatCompletion(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  opts: { maxTokens?: number; temperature?: number; signal?: AbortSignal } = {}
 ): Promise<string> {
   if (!HOST || !TOKEN || !CHAT_ENDPOINT) {
     throw new Error(
@@ -129,16 +138,18 @@ export async function chatCompletion(
     );
   }
 
+  const { maxTokens = 800, temperature = 0, signal } = opts;
   const url = `${HOST}/serving-endpoints/${CHAT_ENDPOINT}/invocations`;
   const res = await fetch(url, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
       messages,
-      max_tokens: 800,
-      temperature: 0,
+      max_tokens: maxTokens,
+      temperature,
       stream: false,
     }),
+    signal,
   });
 
   if (!res.ok) {

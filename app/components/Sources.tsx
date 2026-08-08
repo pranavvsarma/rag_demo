@@ -1,16 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { Source } from "@/app/hooks/useChat";
+import type { Source, RetrievalMeta } from "@/app/hooks/useChat";
 
-/**
- * Collapsible list of the retrieved chunks that grounded an answer.
- * This is the RAG "show your work" UX — it proves the answer came from
- * the documents and lets the user inspect exactly which chunks were used.
- */
-export function Sources({ sources }: { sources: Source[] }) {
+export function Sources({
+  sources,
+  retrieval,
+}: {
+  sources: Source[];
+  retrieval?: RetrievalMeta;
+}) {
   const [open, setOpen] = useState(false);
-  if (!sources || sources.length === 0) return null;
+
+  const hasChunks = sources.length > 0;
+  const abstained = retrieval?.abstained ?? false;
+
+  // Nothing at all to show.
+  if (!hasChunks && !retrieval) return null;
+
+  const label = abstained
+    ? `${retrieval!.candidateCount} candidate${retrieval!.candidateCount !== 1 ? "s" : ""} retrieved`
+    : `${sources.length} source${sources.length !== 1 ? "s" : ""}`;
 
   return (
     <div className="mt-3 border-t border-black/10 pt-2 dark:border-white/10">
@@ -23,30 +33,56 @@ export function Sources({ sources }: { sources: Source[] }) {
         >
           ▸
         </span>
-        {sources.length} source{sources.length > 1 ? "s" : ""}
+        {label}
       </button>
 
       {open && (
-        <ul className="mt-2 space-y-2">
-          {sources.map((s, i) => (
-            <li
-              key={s.id || i}
-              className="rounded-md bg-black/[0.03] p-2 text-xs dark:bg-white/[0.04]"
-            >
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="font-medium text-zinc-700 dark:text-zinc-200">
-                  [{i + 1}] {s.source}
-                </span>
-                <span className="shrink-0 rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-700 dark:text-emerald-300">
-                  {(s.score * 100).toFixed(0)}% match
-                </span>
-              </div>
-              <p className="line-clamp-3 text-zinc-500 dark:text-zinc-400">
-                {s.text}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-2 space-y-2">
+          {/* Rewritten query line */}
+          {retrieval?.rewritten && retrieval.searchQuery !== retrieval.originalQuery && (
+            <p className="text-[11px] italic text-zinc-400 dark:text-zinc-500">
+              searched for: <span className="not-italic text-zinc-500 dark:text-zinc-400">{retrieval.searchQuery}</span>
+            </p>
+          )}
+
+          {/* Abstain notice */}
+          {abstained && (
+            <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+              {retrieval!.candidateCount} candidate{retrieval!.candidateCount !== 1 ? "s" : ""} retrieved — none scored above the relevance floor.
+            </p>
+          )}
+
+          {/* Chunk list */}
+          {hasChunks && (
+            <ul className="space-y-2">
+              {sources.map((s, i) => (
+                <li
+                  key={s.id || i}
+                  className="rounded-md bg-black/[0.03] p-2 text-xs dark:bg-white/[0.04]"
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="font-medium text-zinc-700 dark:text-zinc-200">
+                      [{i + 1}] {s.source}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {s.rerankScore !== undefined && (
+                        <span className="rounded bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-700 dark:text-blue-300">
+                          rank {s.rerankScore}/10
+                        </span>
+                      )}
+                      <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] text-emerald-700 dark:text-emerald-300">
+                        {(s.score * 100).toFixed(0)}% match
+                      </span>
+                    </div>
+                  </div>
+                  <p className="line-clamp-3 text-zinc-500 dark:text-zinc-400">
+                    {s.text}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

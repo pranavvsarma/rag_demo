@@ -20,6 +20,17 @@ export interface Source {
   source: string;
   score: number;
   text: string;
+  rerankScore?: number;
+}
+
+export interface RetrievalMeta {
+  originalQuery: string;
+  searchQuery: string;
+  rewritten: boolean;
+  reranked: boolean;
+  candidateCount: number;
+  droppedByFloor: number;
+  abstained: boolean;
 }
 
 export interface ChartPayload {
@@ -34,6 +45,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: Source[];
+  retrieval?: RetrievalMeta;
   /** Present when this assistant message is a generated chart. */
   chart?: ChartPayload;
 }
@@ -256,7 +268,8 @@ export function useChat() {
           try {
             const meta = JSON.parse(firstLine);
             const sources: Source[] = meta?.sources ?? [];
-            patchAssistant(assistantId, (m) => ({ ...m, sources }));
+            const retrieval: RetrievalMeta | undefined = meta?.retrieval;
+            patchAssistant(assistantId, (m) => ({ ...m, sources, retrieval }));
           } catch {
             /* ignore malformed sources line */
           }

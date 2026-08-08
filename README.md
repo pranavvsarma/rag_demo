@@ -170,6 +170,15 @@ DATABRICKS_VS_ENDPOINT=rag_demo_endpoint
 DATABRICKS_VS_INDEX=rag_demo.docs.doc_chunks_index
 DATABRICKS_CHAT_ENDPOINT=databricks-meta-llama-3-3-70b-instruct
 DATABRICKS_VOLUME_DATA_EXPLORER=/Volumes/rag_demo/docs/data_explorer
+
+# RAG pipeline tuning (all optional — defaults shown)
+RAG_QUERY_REWRITE=1        # 0 disables query condensation
+RAG_RERANK=1               # 0 disables LLM reranking (also disarms the floor)
+RAG_CANDIDATE_POOL=10      # chunks retrieved before reranking
+RAG_TOP_K=5                # chunks kept after reranking for the prompt
+RAG_RERANK_CONCURRENCY=3   # parallel scoring calls; lower further if you hit 429s
+RAG_MIN_RERANK_SCORE=2     # 0-10 floor; chunks below this are dropped
+RAG_ABSTAIN=1              # 0 = filter weak chunks but never refuse to answer
 ```
 
 ### 3. Run

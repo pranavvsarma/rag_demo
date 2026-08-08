@@ -1,6 +1,6 @@
 "use client";
 
-import type { Message } from "@/app/hooks/useChat";
+import type { Message, RetrievalMeta } from "@/app/hooks/useChat";
 import { Sources } from "./Sources";
 import { ChartMessage } from "./ChartMessage";
 
@@ -45,7 +45,12 @@ export function MessageBubble({
           )}
         </p>
 
-        {!isUser && message.sources && <Sources sources={message.sources} />}
+        {!isUser && (message.sources || message.retrieval) && (
+          <Sources
+            sources={message.sources ?? []}
+            retrieval={message.retrieval as RetrievalMeta | undefined}
+          />
+        )}
       </div>
     </div>
   );

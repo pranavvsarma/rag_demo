@@ -1,12 +1,7 @@
-import {
-  retrieve,
-  chatCompletionStream,
-  type Source,
-  type ChatMessage,
-} from "@/lib/databricks";
+import { chatCompletionStream, type ChatMessage } from "@/lib/databricks";
+import { runRetrievalPipeline, type RetrievalMeta } from "@/lib/rag";
+import type { Source } from "@/lib/databricks";
 
-// This route talks to Databricks (network + secrets) on every request, so it
-// must run on the Node runtime and never be cached/prerendered.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -23,7 +18,38 @@ function buildContextBlock(sources: Source[]): string {
     .join("\n\n");
 }
 
+/** Emit the framing line then a canned abstain sentence and close the stream. */
+function abstainStream(
+  meta: RetrievalMeta,
+  sources: Source[],
+  encoder: TextEncoder
+): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const frame = JSON.stringify({ sources: serializeSources(sources), retrieval: meta });
+      controller.enqueue(encoder.encode(frame + "\n"));
+      controller.enqueue(
+        encoder.encode(
+          "I don't have anything in the documents about that."
+        )
+      );
+      controller.close();
+    },
+  });
+}
+
+function serializeSources(sources: Source[]) {
+  return sources.map((s) => ({
+    id: s.id,
+    source: s.source,
+    score: s.score,
+    rerankScore: s.rerankScore,
+    text: s.text,
+  }));
+}
+
 export async function POST(request: Request) {
+  const t0 = Date.now();
   try {
     const body = await request.json();
     const messages: ChatMessage[] = Array.isArray(body?.messages)
@@ -37,10 +63,31 @@ export async function POST(request: Request) {
       return Response.json({ error: "No user message provided." }, { status: 400 });
     }
 
-    // 1. Retrieve grounding chunks from Databricks Vector Search.
-    const sources = await retrieve(query, 5);
+    // Four-stage retrieval pipeline: condense → retrieve → rerank → floor.
+    const t1 = Date.now();
+    const { sources, meta } = await runRetrievalPipeline(messages);
+    const tPipeline = Date.now() - t1;
 
-    // 2. Build a grounded prompt: system rules + retrieved context + history.
+    // Log per-request diagnostics: timings + full rerank score distribution.
+    const scores = sources.map((s) => s.rerankScore ?? "–").join(", ");
+    console.log(
+      `[chat] pipeline=${tPipeline}ms | rewritten=${meta.rewritten} | reranked=${meta.reranked} | candidates=${meta.candidateCount} | kept=${sources.length} | dropped=${meta.droppedByFloor} | abstained=${meta.abstained} | scores=[${scores}] | total=${Date.now() - t0}ms`
+    );
+
+    const encoder = new TextEncoder();
+
+    // Short-circuit when the relevance floor abstained — no generation call.
+    if (meta.abstained) {
+      return new Response(abstainStream(meta, sources, encoder), {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
+    // Build the grounded prompt and stream the answer.
     const chatMessages: ChatMessage[] = [
       { role: "system", content: SYSTEM_PROMPT },
       {
@@ -50,23 +97,17 @@ export async function POST(request: Request) {
       ...messages,
     ];
 
-    // 3. Stream generation from the Databricks Foundation Model endpoint.
     const upstream = await chatCompletionStream(chatMessages);
-
-    const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        // Protocol: the FIRST line is a JSON object with the sources, then the
-        // rest of the stream is the raw answer text (which may contain newlines).
-        const meta = sources.map((s) => ({
-          id: s.id,
-          source: s.source,
-          score: s.score,
-          text: s.text,
-        }));
-        controller.enqueue(encoder.encode(JSON.stringify({ sources: meta }) + "\n"));
+        // First line: sources + retrieval metadata.
+        const frame = JSON.stringify({
+          sources: serializeSources(sources),
+          retrieval: meta,
+        });
+        controller.enqueue(encoder.encode(frame + "\n"));
 
         const reader = upstream.body!.getReader();
         let buffer = "";
@@ -76,7 +117,6 @@ export async function POST(request: Request) {
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
 
-            // Databricks returns SSE: lines like `data: {json}` separated by \n.
             const lines = buffer.split("\n");
             buffer = lines.pop() ?? "";
             for (const line of lines) {
