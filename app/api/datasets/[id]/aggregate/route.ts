@@ -7,6 +7,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
+ * Route for the Data Explorer's chart view. Called by the browser after the
+ * `/api/data` LLM planner returns a "chart" envelope, to compute the actual
+ * series values server-side (over the full dataset) rather than trusting the
+ * model to do arithmetic.
+ *
  * GET /api/datasets/[id]/aggregate?x=&y=&agg= — group rows by `x` and
  * aggregate `y`, returning the series the chart renders. The math is done here
  * over the real rows, so the numbers are exact.

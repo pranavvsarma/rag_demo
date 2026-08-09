@@ -97,6 +97,8 @@ export function ChartBuilder({
   const isLoading = loaded?.key !== key;
   const series = loaded?.series ?? null;
 
+  // Re-fetch the aggregated series whenever the chart's inputs change. `agg`
+  // "count" doesn't need a measure column, so `y` is only required otherwise.
   useEffect(() => {
     if (!x || (agg !== "count" && !y)) return;
 
@@ -130,6 +132,7 @@ export function ChartBuilder({
     };
   }, [dataset.id, x, y, agg]);
 
+  // Persists the current chart config (type/x/y/agg) as a named report.
   async function save() {
     const name = reportName.trim();
     if (!name) return;

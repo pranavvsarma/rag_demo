@@ -6,11 +6,16 @@ import type { Report } from "@/lib/catalog";
 interface Props {
   reports: Report[];
   error: string | null;
+  /** Id of the report currently open in the main pane, for highlighting. */
   activeId: string | null;
   onOpen: (report: Report) => void;
   onDelete: (id: string) => void;
 }
 
+/**
+ * Sidebar list of saved chart reports. Each row opens the report in the main
+ * pane, deep-links it into chat, or deletes it.
+ */
 export function ReportsList({ reports, error, activeId, onOpen, onDelete }: Props) {
   return (
     <div className="border-t border-black/10 p-4 dark:border-white/10">

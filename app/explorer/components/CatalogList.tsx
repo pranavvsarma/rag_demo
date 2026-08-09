@@ -3,21 +3,31 @@
 import type { DatasetMeta } from "@/lib/catalog";
 
 interface Props {
+  /** Datasets to list, already filtered/sorted by the caller. */
   datasets: DatasetMeta[];
+  /** True while the initial or a refreshed fetch is in flight. */
   isLoading: boolean;
   error: string | null;
+  /** Current search box value (controlled by the parent). */
   query: string;
   onQueryChange: (q: string) => void;
+  /** Id of the dataset currently shown in the main pane, for highlighting. */
   selectedId: string | null;
   onSelect: (dataset: DatasetMeta) => void;
   onDelete: (id: string) => void;
 }
 
+// Renders an ISO timestamp as a locale date string; blank if unparseable.
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString();
 }
 
+/**
+ * Sidebar list of uploaded datasets with a search box.
+ * Shows loading/empty states, highlights the selected dataset, and offers
+ * per-item delete (with a confirm prompt, since it also removes saved reports).
+ */
 export function CatalogList({
   datasets,
   isLoading,
@@ -94,6 +104,8 @@ export function CatalogList({
 
                 <button
                   onClick={() => {
+                    // Deleting a dataset cascades to its saved reports server-side,
+                    // so confirm before calling back up to the parent.
                     if (confirm(`Delete "${d.name}"? This also removes its saved reports.`)) {
                       onDelete(d.id);
                     }

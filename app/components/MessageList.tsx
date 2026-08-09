@@ -4,12 +4,25 @@ import { useEffect, useRef } from "react";
 import type { Message } from "@/app/hooks/useChat";
 import { MessageBubble } from "./MessageBubble";
 
+// Example prompts shown as clickable chips on the empty-state screen.
 const SUGGESTIONS = [
   "What is the incident response plan?",
   "Summarize the IoT project report.",
   "What are the phases of incident response?",
 ];
 
+/**
+ * Scrollable list of chat messages. Shows an empty-state welcome screen with
+ * suggestion chips when there are no messages yet, otherwise renders each
+ * message as a `MessageBubble` and auto-scrolls to the bottom as new content
+ * arrives.
+ *
+ * @param messages - The full conversation so far.
+ * @param isStreaming - Whether the assistant is currently streaming a reply;
+ *   used to mark only the last assistant message as "streaming".
+ * @param onPick - Called with a suggestion's text when the user clicks a
+ *   suggestion chip (empty state only).
+ */
 export function MessageList({
   messages,
   isStreaming,
@@ -54,6 +67,8 @@ export function MessageList({
     );
   }
 
+  // Only the most recent assistant message should show streaming affordances
+  // (typing dots / blinking cursor), so identify it by id.
   const lastId = messages[messages.length - 1]?.id;
 
   return (

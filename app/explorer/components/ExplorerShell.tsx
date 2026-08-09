@@ -9,6 +9,13 @@ import { DatasetView } from "./DatasetView";
 import { ReportsList } from "./ReportsList";
 import { UploadPanel } from "./UploadPanel";
 
+/**
+ * Top-level layout for the Data Explorer page: a sidebar (upload form,
+ * dataset catalog, saved reports) plus a main pane that shows the selected
+ * dataset's preview/chart view. Owns the "what is currently selected/open"
+ * state and wires the child components' callbacks together; data fetching
+ * itself lives in the useDatasets/useReports hooks.
+ */
 export function ExplorerShell() {
   const { datasets, query, setQuery, isLoading, error, upload, remove } =
     useDatasets();
@@ -90,6 +97,8 @@ export function ExplorerShell() {
     }
   }
 
+  // Passed down to ChartBuilder; associates the saved report with whichever
+  // dataset is currently selected.
   async function saveReport(name: string, chart: ChartConfig) {
     if (!selected) return;
     return reports.save(name, selected.id, chart);

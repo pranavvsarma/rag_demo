@@ -164,6 +164,7 @@ export function triggerDownload(blob: Blob, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
+/** Rasterize the chart (see `renderChartPng`) and trigger a `.png` download. */
 export async function downloadChartPng(
   source: SVGSVGElement,
   { fileName, ...options }: RenderOptions & { fileName: string }

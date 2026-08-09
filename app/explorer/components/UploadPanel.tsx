@@ -4,10 +4,17 @@ import { useRef, useState } from "react";
 import type { DatasetMeta } from "@/lib/catalog";
 
 interface Props {
+  /** Sends the built FormData to the upload API; resolves with the new dataset's metadata. */
   onUpload: (form: FormData) => Promise<DatasetMeta>;
+  /** Called after a successful upload so the parent can select the new dataset. */
   onUploaded: (dataset: DatasetMeta) => void;
 }
 
+/**
+ * Form for uploading a new CSV/JSON dataset with optional name, description,
+ * and comma-separated tags. Owns its own busy/error state and resets itself
+ * after a successful upload.
+ */
 export function UploadPanel({ onUpload, onUploaded }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -17,6 +24,7 @@ export function UploadPanel({ onUpload, onUploaded }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Clears the form, including the native file input (which isn't controllable via state).
   function reset() {
     setFile(null);
     setName("");
@@ -32,6 +40,8 @@ export function UploadPanel({ onUpload, onUploaded }: Props) {
     setBusy(true);
     setError(null);
     try {
+      // Build multipart form data for the upload API; fall back to the
+      // file's own name if the user didn't type one.
       const form = new FormData();
       form.append("file", file);
       form.append("name", name.trim() || file.name);
@@ -63,6 +73,7 @@ export function UploadPanel({ onUpload, onUploaded }: Props) {
         onChange={(e) => {
           const f = e.target.files?.[0] ?? null;
           setFile(f);
+          // Pre-fill the name field from the file, but don't clobber a name the user already typed.
           if (f && !name.trim()) setName(f.name);
         }}
         className="w-full text-xs text-zinc-600 file:mr-2 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-zinc-700 dark:text-zinc-400 dark:file:bg-zinc-100 dark:file:text-zinc-900 dark:hover:file:bg-zinc-300"

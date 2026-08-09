@@ -2,6 +2,22 @@
 
 import { useRef, useEffect } from "react";
 
+/**
+ * The bottom composer bar: an auto-growing textarea, a CSV upload button, and
+ * a Send/Stop button that toggles based on streaming state. Also shows a chip
+ * for the currently attached dataset (if any), with a button to remove it.
+ *
+ * @param value - Current textarea content (controlled).
+ * @param onChange - Called with the new textarea content on every keystroke.
+ * @param onSend - Called when the user submits the message (Enter or Send button).
+ * @param onStop - Called to cancel an in-flight streaming response.
+ * @param isStreaming - Whether an assistant response is currently streaming;
+ *   swaps the Send button for a Stop button.
+ * @param datasetName - Name of the attached dataset/CSV, or null/undefined if
+ *   the chat is in plain document-RAG mode.
+ * @param onUpload - Called with the selected File when the user picks a CSV.
+ * @param onClearDataset - Called when the user removes the attached dataset.
+ */
 export function ChatInput({
   value,
   onChange,
@@ -32,6 +48,7 @@ export function ChatInput({
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
   }, [value]);
 
+  // Enter sends the message; Shift+Enter inserts a newline (default textarea behavior).
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

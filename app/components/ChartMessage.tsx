@@ -46,12 +46,21 @@ const PALETTE = [
 
 const AXIS = "#52525b"; // zinc-600
 
+/**
+ * Renders a chart generated from the assistant's response (bar/line/pie) using
+ * Chart.js, plus a "Download PNG" button.
+ *
+ * @param chart - The chart spec (kind, title, labels, values) parsed out of
+ *   the streamed assistant reply. See `ChartPayload` in `useChat`.
+ */
 export function ChartMessage({ chart }: { chart: ChartPayload }) {
   // The chart renders into a <canvas>; we read it back for the PNG export.
   const containerRef = useRef<HTMLDivElement>(null);
 
   const title = chart.title || "Chart";
   const isPie = chart.kind === "pie";
+  // Assign each label a stable color from the fixed palette, cycling if there
+  // are more labels than palette entries.
   const colors = chart.labels.map((_, i) => PALETTE[i % PALETTE.length]);
 
   const data: ChartData<"bar" | "line" | "pie"> = {
@@ -86,6 +95,11 @@ export function ChartMessage({ chart }: { chart: ChartPayload }) {
         },
   };
 
+  /**
+   * Exports the rendered chart canvas as a downloadable PNG file. Chart.js
+   * canvases are transparent by default, so we first draw onto a white
+   * background canvas before generating the data URL.
+   */
   function download() {
     const source = containerRef.current?.querySelector("canvas");
     if (!source) return;

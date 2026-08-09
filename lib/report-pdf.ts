@@ -42,6 +42,10 @@ function formatValue(value: number): string {
     : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+/**
+ * Render a report to a single- or multi-page A4 PDF (title block, chart image,
+ * then the underlying data as a table) and trigger a browser download.
+ */
 export async function downloadReportPdf(
   chartSvg: SVGSVGElement,
   {

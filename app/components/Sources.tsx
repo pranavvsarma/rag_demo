@@ -3,6 +3,18 @@
 import { useState } from "react";
 import type { Source, RetrievalMeta } from "@/app/hooks/useChat";
 
+/**
+ * Collapsible panel attached to an assistant message showing the RAG
+ * retrieval evidence: which document chunks were used (with similarity and
+ * rerank scores), the rewritten search query (if different from what the
+ * user typed), and, when the model abstained from answering, how many
+ * candidates were retrieved but none cleared the relevance floor.
+ *
+ * @param sources - Retrieved chunks that were actually used to ground the answer.
+ * @param retrieval - Metadata about the retrieval step itself (query
+ *   rewriting, candidate count, whether the model abstained). May be present
+ *   even when `sources` is empty, e.g. on an abstain.
+ */
 export function Sources({
   sources,
   retrieval,
@@ -18,6 +30,8 @@ export function Sources({
   // Nothing at all to show.
   if (!hasChunks && !retrieval) return null;
 
+  // Label reflects whether the model abstained (show candidates considered)
+  // or answered normally (show sources actually cited).
   const label = abstained
     ? `${retrieval!.candidateCount} candidate${retrieval!.candidateCount !== 1 ? "s" : ""} retrieved`
     : `${sources.length} source${sources.length !== 1 ? "s" : ""}`;

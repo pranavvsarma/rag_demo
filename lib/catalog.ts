@@ -52,6 +52,10 @@ export function datasetFilePath(meta: Pick<DatasetMeta, "id" | "format">) {
 
 // ----- Datasets -----
 
+/**
+ * List datasets, newest first. When `q` is given, filters (case-insensitive)
+ * on name, description and tags.
+ */
 export async function listDatasets(q?: string): Promise<DatasetMeta[]> {
   const all = await readJson<DatasetMeta[]>(CATALOG_PATH, []);
   const sorted = [...all].sort((a, b) =>
@@ -67,11 +71,13 @@ export async function listDatasets(q?: string): Promise<DatasetMeta[]> {
   );
 }
 
+/** Look up a single dataset by id. Returns null if it doesn't exist. */
 export async function getDataset(id: string): Promise<DatasetMeta | null> {
   const all = await readJson<DatasetMeta[]>(CATALOG_PATH, []);
   return all.find((d) => d.id === id) ?? null;
 }
 
+/** Append a dataset's metadata to the catalog index and return it unchanged. */
 export async function addDataset(meta: DatasetMeta): Promise<DatasetMeta> {
   const all = await readJson<DatasetMeta[]>(CATALOG_PATH, []);
   await writeJson(CATALOG_PATH, [...all, meta]);
@@ -122,22 +128,26 @@ export async function writeDatasetFile(
 
 // ----- Reports -----
 
+/** List saved reports, newest first. */
 export async function listReports(): Promise<Report[]> {
   const all = await readJson<Report[]>(REPORTS_PATH, []);
   return [...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/** Look up a single saved report by id. Returns null if it doesn't exist. */
 export async function getReport(id: string): Promise<Report | null> {
   const all = await readJson<Report[]>(REPORTS_PATH, []);
   return all.find((r) => r.id === id) ?? null;
 }
 
+/** Append a report to the reports index and return it unchanged. */
 export async function addReport(report: Report): Promise<Report> {
   const all = await readJson<Report[]>(REPORTS_PATH, []);
   await writeJson(REPORTS_PATH, [...all, report]);
   return report;
 }
 
+/** Remove a saved report by id. Returns false if it wasn't found. */
 export async function deleteReport(id: string): Promise<boolean> {
   const all = await readJson<Report[]>(REPORTS_PATH, []);
   if (!all.some((r) => r.id === id)) return false;

@@ -103,6 +103,8 @@ export function useChat() {
   const [isLoadingDataset, setIsLoadingDataset] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Applies a partial update to a single message by id (used to stream tokens
+  // and attach sources/chart data onto the assistant placeholder in-place).
   const patchAssistant = useCallback(
     (id: string, patch: (m: Message) => Message) => {
       setMessages((prev) => prev.map((m) => (m.id === id ? patch(m) : m)));
@@ -148,6 +150,7 @@ export function useChat() {
     }
   }, []);
 
+  // Detaches the active dataset, reverting the chat to the doc-RAG path.
   const clearDataset = useCallback(() => {
     setDataset(null);
     setDatasetNote(null);
@@ -359,6 +362,10 @@ export function useChat() {
     [patchAssistant]
   );
 
+  // Main submit handler: appends the user message + an empty assistant
+  // placeholder, then routes to the doc-RAG or CSV path depending on
+  // whether a dataset is attached, streaming/patching the placeholder as
+  // results arrive.
   const send = useCallback(
     async (override?: string) => {
       const content = (override ?? input).trim();
@@ -412,6 +419,7 @@ export function useChat() {
     ]
   );
 
+  // Cancels the in-flight doc-RAG stream, if any (via the shared AbortController).
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
   // Clear the conversation and return to the empty landing screen.

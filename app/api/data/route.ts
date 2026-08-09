@@ -1,5 +1,13 @@
 import { chatCompletion, type ChatMessage } from "@/lib/databricks";
 
+/**
+ * POST /api/data — the Data Explorer's natural-language query endpoint.
+ * Given a question and a dataset summary, the LLM decides *what* to do
+ * (chart / compute / plain-text answer) and replies with a small JSON
+ * "envelope" describing that intent; the browser executes it against the
+ * real rows so all numbers/charts stay exact (see comment below).
+ */
+
 // Talks to Databricks (network + secrets); must run on Node and never cache.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +63,12 @@ function extractJson(text: string): string | null {
   return null;
 }
 
+/**
+ * Handle a Data Explorer question. Expects JSON body `{ question, summary }`
+ * where `summary` describes the dataset's schema/sample rows. Returns a JSON
+ * envelope of shape `{type:"chart"|"compute"|"text", ...}` (see SYSTEM_PROMPT
+ * above), or falls back to `{type:"text"}` if the model didn't return valid JSON.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();

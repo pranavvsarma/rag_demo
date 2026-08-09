@@ -7,8 +7,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
+ * Route for the Data Explorer's "Download" action.
+ *
  * GET /api/datasets/[id]/download — always returns CSV. A CSV dataset is
- * served back verbatim; a JSON one is flattened to CSV first.
+ * served back verbatim; a JSON one is flattened to CSV first. Response is a
+ * file download (Content-Disposition: attachment) named after the dataset.
  */
 export async function GET(
   _request: NextRequest,

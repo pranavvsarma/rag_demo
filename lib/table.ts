@@ -29,6 +29,7 @@ export type Agg = "sum" | "avg" | "count" | "min" | "max";
 
 export const AGGS: Agg[] = ["sum", "avg", "count", "min", "max"];
 
+/** Type guard: true if `v` is one of the supported aggregation strings. */
 export function isAgg(v: string): v is Agg {
   return (AGGS as string[]).includes(v);
 }
@@ -141,6 +142,7 @@ function inferType(rows: Record<string, Cell>[], field: string): ColumnType {
 
 // ----- Serialization -----
 
+/** Render a cell for display/CSV output; null/undefined become an empty string. */
 export function fmtCell(v: Cell): string {
   if (v === null || v === undefined) return "";
   return String(v);
@@ -152,6 +154,7 @@ function csvEscape(v: Cell): string {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** Serialize columns + rows back to CSV text (CRLF line endings, RFC-4180 quoting). */
 export function toCsv(
   columns: TableColumn[],
   rows: Record<string, Cell>[]

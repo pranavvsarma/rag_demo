@@ -1,6 +1,9 @@
 import { deleteReport, getReport } from "@/lib/catalog";
 import type { NextRequest } from "next/server";
 
+// Route for a single saved report (a saved chart configuration): fetch it
+// (GET) or remove it (DELETE). Used by the Data Explorer's reports view.
+
 // Talks to Databricks (network + secrets); must run on Node and never cache.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

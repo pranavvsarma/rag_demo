@@ -7,6 +7,9 @@ import type { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Route for the Data Explorer's dataset catalog: listing/searching (GET) and
+// uploading new CSV/JSON datasets (POST).
+
 // Parsing happens in-process, so cap uploads to keep Node memory bounded.
 const MAX_BYTES = 5 * 1024 * 1024;
 

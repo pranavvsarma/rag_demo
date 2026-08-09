@@ -2,6 +2,17 @@ import { chatCompletionStream, type ChatMessage } from "@/lib/databricks";
 import { runRetrievalPipeline, type RetrievalMeta } from "@/lib/rag";
 import type { Source } from "@/lib/databricks";
 
+/**
+ * POST /api/chat — the RAG chat endpoint used by the chat UI.
+ * Given the running conversation, it retrieves (and reranks) relevant
+ * document chunks from Databricks, then streams back a grounded answer
+ * from the LLM. If nothing sufficiently relevant is found, it abstains
+ * instead of calling the model. Response body is a streamed, newline-framed
+ * payload: first line is JSON (sources + retrieval metadata), followed by
+ * the plain-text answer tokens.
+ */
+
+// Talks to Databricks (network + secrets); must run on Node and never cache.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -11,6 +22,7 @@ Rules:
 - If the context does not contain the answer, say you don't know based on the available documents. Do not make things up.
 - Be concise, and cite the source filename(s) you used in square brackets, e.g. [warranty.md].`;
 
+/** Format retrieved chunks into the numbered, citable context block for the prompt. */
 function buildContextBlock(sources: Source[]): string {
   if (sources.length === 0) return "No relevant documents were found.";
   return sources
@@ -38,6 +50,7 @@ function abstainStream(
   });
 }
 
+/** Trim each Source down to the fields the client needs to render citations. */
 function serializeSources(sources: Source[]) {
   return sources.map((s) => ({
     id: s.id,
@@ -48,6 +61,11 @@ function serializeSources(sources: Source[]) {
   }));
 }
 
+/**
+ * Handle a chat turn. Expects JSON body `{ messages: ChatMessage[] }` (the
+ * full conversation so far). Returns a streamed text/plain response, or a
+ * JSON error object with 400/500 status on failure.
+ */
 export async function POST(request: Request) {
   const t0 = Date.now();
   try {

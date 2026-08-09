@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Top-level nav destinations; order here determines render order.
 const LINKS = [
   { href: "/", label: "Chat" },
   { href: "/explorer", label: "Data Explorer" },
@@ -12,6 +13,8 @@ const LINKS = [
 export function TopNav() {
   const pathname = usePathname();
 
+  // Root ("/") only matches exactly, so it isn't marked active while on any
+  // "/explorer/..." sub-route; other links match by prefix.
   return (
     <nav className="flex shrink-0 items-center gap-1 border-b border-black/10 bg-zinc-50 px-4 py-2 dark:border-white/10 dark:bg-zinc-950">
       {LINKS.map(({ href, label }) => {

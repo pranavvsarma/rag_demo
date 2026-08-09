@@ -12,6 +12,11 @@ interface PreviewResponse {
   total: number;
 }
 
+/**
+ * Paginated read-only preview of a dataset's raw rows, fetched page by page
+ * from `/api/datasets/[id]`. Re-fetches whenever `datasetId` or the page
+ * number changes.
+ */
 export function PreviewTable({ datasetId }: { datasetId: string }) {
   const [page, setPage] = useState(1);
   // Cache the response together with the request it answers, so "is loading"
@@ -65,6 +70,7 @@ export function PreviewTable({ datasetId }: { datasetId: string }) {
     return <p className="text-xs text-zinc-500 dark:text-zinc-400">Loading preview…</p>;
   }
 
+  // Derive pagination display values (1-based "showing X-Y of Z") from the total row count.
   const lastPage = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   const first = data.total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const last = Math.min(page * PAGE_SIZE, data.total);

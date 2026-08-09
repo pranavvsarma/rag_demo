@@ -5,6 +5,16 @@ import { useChat } from "@/app/hooks/useChat";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 
+/**
+ * Top-level chat page layout: header, scrollable message list, status
+ * banners (error / dataset loading / dataset note), and the input composer.
+ * Wires up the `useChat` hook, which owns all chat/dataset state.
+ *
+ * @param datasetId - Optional catalog dataset id to attach when arriving via
+ *   a Data Explorer deep link (`/?dataset=<id>`).
+ * @param reportId - Optional saved report id to open on arrival
+ *   (`/?report=<id>`); takes precedence over `datasetId` if both are present.
+ */
 export function ChatWindow({
   datasetId,
   reportId,

@@ -3,6 +3,9 @@ import type { Report } from "@/lib/catalog";
 import { isChartType } from "@/lib/chart-types";
 import { isAgg } from "@/lib/table";
 
+// Route for the report catalog: list all saved reports (GET), or save a new
+// chart configuration as a named report (POST) from the Data Explorer.
+
 // Talks to Databricks (network + secrets); must run on Node and never cache.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

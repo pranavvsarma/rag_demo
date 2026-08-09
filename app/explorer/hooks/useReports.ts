@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChartConfig, Report } from "@/lib/catalog";
 
+// GET the full saved-reports list from the server.
 async function fetchReports(): Promise<Report[]> {
   const res = await fetch("/api/reports", { cache: "no-store" });
   const data = await res.json();
@@ -10,11 +11,21 @@ async function fetchReports(): Promise<Report[]> {
   return data.reports ?? [];
 }
 
+// Normalize a caught value into a user-facing error message.
 function message(e: unknown): string {
   return e instanceof Error ? e.message : "Could not load reports.";
 }
 
-/** Saved-report state for the Explorer. Same hand-rolled fetch style as useDatasets. */
+/**
+ * Saved-report state for the Explorer. Same hand-rolled fetch style as useDatasets.
+ *
+ * Returns:
+ *  - reports: current list of saved reports (loaded on mount)
+ *  - error: message from the last failed load/save/delete, else null
+ *  - save(name, datasetId, chart): POST a new report, prepend it on success
+ *  - remove(id): DELETE a report, drop it from `reports` on success
+ *  - refresh(): re-fetch the full list (e.g. after a server-side cascade)
+ */
 export function useReports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +59,7 @@ export function useReports() {
     }
   }, []);
 
+  // Persists a new report and prepends the server's created record locally.
   const save = useCallback(
     async (name: string, datasetId: string, chart: ChartConfig) => {
       const res = await fetch("/api/reports", {
@@ -63,6 +75,7 @@ export function useReports() {
     []
   );
 
+  // Deletes a report server-side, then removes it from local state.
   const remove = useCallback(async (id: string) => {
     const res = await fetch(`/api/reports/${id}`, { method: "DELETE" });
     if (!res.ok) {

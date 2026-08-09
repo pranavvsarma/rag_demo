@@ -4,6 +4,16 @@ import type { Message, RetrievalMeta } from "@/app/hooks/useChat";
 import { Sources } from "./Sources";
 import { ChartMessage } from "./ChartMessage";
 
+/**
+ * Renders a single chat message: either a chart card (when the message
+ * carries a generated chart) or a text bubble, styled differently for user
+ * vs. assistant. Assistant bubbles also render a typing indicator while
+ * streaming and, if present, the retrieved `Sources` panel.
+ *
+ * @param message - The message to render (role, content, optional chart/sources/retrieval meta).
+ * @param streaming - Whether this message is the one currently streaming in;
+ *   drives the typing dots (empty content) / blinking cursor (partial content).
+ */
 export function MessageBubble({
   message,
   streaming,
@@ -56,6 +66,7 @@ export function MessageBubble({
   );
 }
 
+/** A single bouncing dot used to build the "assistant is typing" indicator. */
 function Dot({ delay = "0ms" }: { delay?: string }) {
   return (
     <span

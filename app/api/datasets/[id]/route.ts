@@ -6,9 +6,13 @@ import type { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Route for the Data Explorer's dataset detail view: paginated row preview
+// (GET) and dataset removal (DELETE).
+
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 500;
 
+/** Parse+clamp a query-string int param, falling back to `fallback` if missing/invalid. */
 function intParam(v: string | null, fallback: number, max: number): number {
   const n = Number(v);
   if (!Number.isFinite(n) || n < 1) return fallback;

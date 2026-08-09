@@ -6,12 +6,15 @@ function one(v: string | string[] | undefined): string | undefined {
 }
 
 /**
+ * The `/` (home) route: renders the main chat UI via `ChatWindow`.
+ *
  * `?dataset=<id>` and `?report=<id>` are the Data Explorer's "Ask in chat"
  * deep links. Reading them here (rather than with useSearchParams) keeps the
  * client tree free of a Suspense boundary; it does opt this page into dynamic
  * rendering, which is fine — nothing on it was static anyway.
  */
 export default async function Home({ searchParams }: PageProps<"/">) {
+  // `searchParams` is a Promise in the App Router (must be awaited before use).
   const params = await searchParams;
 
   return (
