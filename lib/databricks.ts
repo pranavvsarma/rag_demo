@@ -28,6 +28,19 @@ export interface ChatMessage {
   content: string;
 }
 
+/** OpenAI-format tool call, as returned by the Llama serving endpoint. */
+export interface ToolCall {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+}
+
+/** Conversation message shape used by the agent loop — a superset of ChatMessage. */
+export type AgentMessage =
+  | ChatMessage
+  | { role: "tool"; tool_call_id: string; content: string }
+  | { role: "assistant"; content: string | null; tool_calls: ToolCall[] };
+
 function authHeaders() {
   return {
     Authorization: `Bearer ${TOKEN}`,
@@ -43,7 +56,8 @@ function authHeaders() {
 export async function retrieve(
   query: string,
   numResults = 5,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  sourceFilter?: string
 ): Promise<Source[]> {
   if (!HOST || !TOKEN || !INDEX) {
     throw new Error(
@@ -59,6 +73,7 @@ export async function retrieve(
       columns: ["id", "text", "source"],
       query_text: query,
       num_results: numResults,
+      ...(sourceFilter && { filters_json: JSON.stringify({ source: sourceFilter }) }),
     }),
     signal,
   });
@@ -96,7 +111,7 @@ export async function retrieve(
  * so the caller can parse the SSE stream.
  */
 export async function chatCompletionStream(
-  messages: ChatMessage[]
+  messages: AgentMessage[]
 ): Promise<Response> {
   if (!HOST || !TOKEN || !CHAT_ENDPOINT) {
     throw new Error(
@@ -122,6 +137,50 @@ export async function chatCompletionStream(
   }
 
   return res;
+}
+
+/**
+ * Non-streaming completion with function calling. Used by the agent loop,
+ * which needs the full `tool_calls` array (not token deltas) to decide
+ * whether to invoke a tool or stop and answer.
+ */
+export async function chatCompletionWithTools(
+  messages: AgentMessage[],
+  tools: object[],
+  signal?: AbortSignal
+): Promise<{ content: string | null; tool_calls: ToolCall[] | null }> {
+  if (!HOST || !TOKEN || !CHAT_ENDPOINT) {
+    throw new Error(
+      "Databricks env vars missing. Set DATABRICKS_HOST, DATABRICKS_TOKEN and DATABRICKS_CHAT_ENDPOINT in .env.local"
+    );
+  }
+
+  const url = `${HOST}/serving-endpoints/${CHAT_ENDPOINT}/invocations`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      messages,
+      max_tokens: 800,
+      temperature: 0.2,
+      stream: false,
+      tools,
+      tool_choice: "auto",
+    }),
+    signal,
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Chat endpoint failed (${res.status}): ${detail}`);
+  }
+
+  const data = await res.json();
+  const message = data?.choices?.[0]?.message ?? {};
+  return {
+    content: message.content ?? null,
+    tool_calls: message.tool_calls ?? null,
+  };
 }
 
 /**
