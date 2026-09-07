@@ -2,8 +2,12 @@
 
 `route.ts` — the RAG chat endpoint (`POST /api/chat`):
 
-1. Retrieves relevant chunks from the Databricks Vector Search Delta Sync index (plain-text query — embedding happens server-side in Databricks).
-2. Builds a grounded prompt from the retrieved chunks.
-3. Streams the generation from the Databricks Foundation Model serving endpoint (Llama 3.3 70B).
+1. Runs the agent loop (`lib/agent.ts`): the model calls the `search_documents`
+   tool (`lib/tools.ts`) against the Databricks Vector Search Delta Sync index
+   as many times as it needs — reranking and a relevance floor run inside the
+   tool — until it stops requesting searches or a 5-iteration cap is hit.
+2. Streams the final answer from the Databricks Foundation Model serving
+   endpoint (Llama 3.3 70B) over the full tool-call conversation, no tools
+   attached.
 
-Response framing: the first streamed line is a JSON object `{ "sources": [...] }` with the retrieved citations, followed by the answer text streamed token-by-token. Retrieval/rerank behavior (query rewrite, reranking, abstain-when-irrelevant, top-k, score floor) is controlled by the `RAG_*` env vars documented in the root README.
+Response framing: the first streamed line is a JSON object `{ "sources": [...], "retrieval": {...} }` with the deduplicated citations from every tool call, followed by the answer text streamed token-by-token. Reranking behavior is controlled by the `RAG_*` env vars documented in the root README.
