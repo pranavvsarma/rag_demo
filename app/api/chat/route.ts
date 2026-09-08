@@ -1,5 +1,6 @@
 import { chatCompletionStream, type ChatMessage } from "@/lib/databricks";
 import { runAgent } from "@/lib/agent";
+import { rewriteQuery } from "@/lib/query-rewrite";
 import type { Source } from "@/lib/databricks";
 
 /**
@@ -47,10 +48,20 @@ export async function POST(request: Request) {
       return Response.json({ error: "No user message provided." }, { status: 400 });
     }
 
+    // Follow-ups ("why?") are semantically meaningless to the vector index on
+    // their own — condense conversation + question into a standalone query
+    // before retrieval. Single-turn conversations skip the LLM call.
+    const hasHistory = messages.some((m) => m.role === "assistant");
+    const searchQuery = hasHistory ? await rewriteQuery(messages) : query;
+
+    if (searchQuery !== query) {
+      console.log(`[chat] query_rewrite: "${query}" -> "${searchQuery}"`);
+    }
+
     // Agent loop: search_documents (rerank + floor applied inside the tool)
     // until the model has enough to answer, or the iteration cap is hit.
     const t1 = Date.now();
-    const { sources, conversation, iterations } = await runAgent(messages);
+    const { sources, conversation, iterations } = await runAgent(messages, undefined, searchQuery);
     const tAgent = Date.now() - t1;
 
     // Log per-request diagnostics: timings + full rerank score distribution.
@@ -73,8 +84,8 @@ export async function POST(request: Request) {
           sources: serializeSources(sources),
           retrieval: {
             originalQuery: query,
-            searchQuery: query,
-            rewritten: false,
+            searchQuery,
+            rewritten: searchQuery !== query,
             reranked: true,
             candidateCount: sources.length,
             droppedByFloor: 0,

@@ -29,9 +29,14 @@ export interface AgentResult {
  */
 export async function runAgent(
   messages: ChatMessage[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  searchHint?: string
 ): Promise<AgentResult> {
-  const conversation: AgentMessage[] = [{ role: "system", content: SYSTEM_PROMPT }, ...messages];
+  const systemContent = searchHint
+    ? `${SYSTEM_PROMPT}\n\nBegin by searching for: "${searchHint}"`
+    : SYSTEM_PROMPT;
+
+  const conversation: AgentMessage[] = [{ role: "system", content: systemContent }, ...messages];
   const allSources: Source[] = [];
   const seenIds = new Set<string>();
 
