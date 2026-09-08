@@ -3,7 +3,8 @@
 Shared server- and client-side logic used by both the chat and Data Explorer routes.
 
 - `databricks.ts` — server-only Databricks REST client (Vector Search + Foundation Model calls, including the tool-calling variant used by the agent loop).
-- `agent.ts` — ReAct-style agent loop: offers the `search_documents` tool until the model stops requesting it, or a 5-iteration cap is hit.
+- `agent.ts` — ReAct-style agent loop: offers the `search_documents` tool until the model stops requesting it, or a 5-iteration cap is hit. Takes an optional `searchHint` string appended to the system prompt to prime the first search.
+- `query-rewrite.ts` — condenses `(history + new question)` into a standalone search query for follow-up turns, via one cheap non-streaming `chatCompletion` call; falls back to the raw question on the first turn or on any failure. Separate from — and not to be confused with — `rag.ts`'s unused `condenseQuery`.
 - `tools.ts` — tool registry; `search_documents` wraps `retrieve` + `rerank` + relevance floor into one model-facing tool.
 - `rag.ts` — rerank + relevance-floor stages, called from `tools.ts`. Also holds `condenseQuery`/`runRetrievalPipeline` from the pre-agent fixed pipeline, which nothing calls anymore.
 - `volume.ts` — server-only Files API client over the Unity Catalog Volume.

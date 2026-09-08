@@ -50,7 +50,9 @@ and save it as a named report. "Ask in chat" opens it back in the chat tab.
 │  Next.js Route Handlers (server, Node runtime)               │
 │  Backend-for-frontend — holds the Databricks PAT             │
 │                                                               │
-│  /api/chat      1. agent loop: model calls search_documents   │
+│  /api/chat      0. condense a follow-up into a standalone     │
+│                    query (skipped on turn 1)                  │
+│                 1. agent loop: model calls search_documents   │
 │                    (rerank + relevance floor run inside the   │
 │                    tool) until satisfied, or a 5-iter cap     │
 │                 2. stream the final answer over the full      │
@@ -71,7 +73,7 @@ and save it as a named report. "Ask in chat" opens it back in the chat tab.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Three design invariants worth knowing:
+Four design invariants worth knowing:
 
 - **Retrieval is agent-driven, not a fixed pipeline.** The model itself
   decides when to call `search_documents`, how to phrase the query, and
@@ -79,6 +81,15 @@ Three design invariants worth knowing:
   and a relevance floor run *inside* the tool (`lib/tools.ts`), so every
   result the model sees back is already quality-filtered; it never touches
   raw vector-search hits directly.
+- **Follow-ups get condensed before they hit the agent.** A bare `"why?"`
+  embeds as near-random noise against the vector index, and the agent loop
+  only sometimes reformulates it correctly on its own. `route.ts` detects a
+  non-empty history and makes one cheap non-streaming call
+  (`lib/query-rewrite.ts`) to rewrite `(history + question)` into a
+  standalone search query *before* the agent loop starts; that string is
+  passed to `runAgent` as a hint for its first `search_documents` call. On
+  the first turn of a conversation this is skipped entirely — no added
+  latency.
 - **Databricks-computed embeddings.** The Delta Sync index embeds documents and
   queries with the same GTE model server-side, so the app queries Vector Search
   with plain **text** and never calls an embedding model itself. Two REST calls
@@ -114,7 +125,8 @@ Three design invariants worth knowing:
 ```
 app/
   api/
-    chat/route.ts               BFF: run the agent loop, then stream the answer
+    chat/route.ts               BFF: condense follow-ups, run the agent loop,
+                                 then stream the answer
     data/route.ts               LLM planner → {chart|compute|text} envelope
     datasets/route.ts           GET search catalog · POST upload (5 MB cap)
     datasets/[id]/route.ts      GET metadata + a page of parsed rows · DELETE
@@ -146,7 +158,10 @@ app/
 lib/
   databricks.ts                 Server-only Databricks REST client
   agent.ts                      ReAct-style loop: offer search_documents until
-                                 the model stops requesting it, or a 5-iter cap
+                                 the model stops requesting it, or a 5-iter cap;
+                                 optional searchHint primes the first search
+  query-rewrite.ts              Condenses (history + question) into a
+                                 standalone search query for follow-up turns
   tools.ts                      Tool registry — search_documents wraps
                                  retrieve + rerank + relevance floor
   rag.ts                        Rerank + relevance-floor stages used by tools.ts
@@ -197,6 +212,9 @@ RAG_MIN_RERANK_SCORE=2     # 0-10 floor; chunks below this are dropped
 # RAG_QUERY_REWRITE, RAG_CANDIDATE_POOL, RAG_TOP_K and RAG_ABSTAIN still exist
 # in lib/rag.ts (condenseQuery / runRetrievalPipeline) but nothing calls those
 # functions since the agent loop replaced the fixed pipeline — currently inert.
+# (Follow-up condensation on the live agent path is a separate mechanism,
+# lib/query-rewrite.ts, and has no env var — see "How the agent loop +
+# streaming work" below.)
 
 # Agent loop knobs (hardcoded, not env vars — see lib/agent.ts, lib/tools.ts)
 #   MAX_ITERATIONS = 5    search_documents calls allowed before forcing an answer
@@ -216,13 +234,26 @@ Open http://localhost:3000 for the chat, or http://localhost:3000/explorer.
 
 ## How the agent loop + streaming work
 
-Each turn runs a hand-rolled ReAct-style loop (`lib/agent.ts`) before any
+Before the agent loop starts, `route.ts` checks whether the conversation has
+any prior assistant turns. If it does, `rewriteQuery()` (`lib/query-rewrite.ts`)
+makes one cheap non-streaming `chatCompletion` call — capped at the last 8
+messages, `maxTokens: 60`, `temperature: 0` — that condenses history + the new
+question into a standalone search query (e.g. `"why?"` → `"why does the
+warranty exclude water damage?"`). On the first turn of a conversation this is
+skipped entirely: zero added latency, and if the rewrite call throws for any
+reason it falls back to the raw question rather than blocking the request.
+
+Each turn then runs a hand-rolled ReAct-style loop (`lib/agent.ts`) before any
 tokens reach the browser:
 
 1. The conversation (system prompt + history) goes to the serving endpoint
    with the `search_documents` tool definition and `tool_choice: "auto"`, via
    a **non-streaming** call (`chatCompletionWithTools`) — the loop needs the
-   structured `tool_calls` array, not token deltas.
+   structured `tool_calls` array, not token deltas. If a condensed query was
+   produced above, it's appended to the system prompt as a directive
+   (`runAgent`'s optional `searchHint` param) so the model's first search
+   starts from it — the model can still refine or ignore it on later
+   iterations.
 2. If the model requests the tool, `lib/tools.ts` retrieves candidates from
    Vector Search, reranks them, applies the relevance floor, and feeds the
    quality-filtered chunks back as a `tool` message. The model can call the
@@ -232,6 +263,10 @@ tokens reach the browser:
    — whichever comes first. Either way, `route.ts` makes one final call to
    `chatCompletionStream()`, *without* tools, over the full accumulated
    conversation to generate the answer.
+
+The first-line metadata frame reflects the rewrite: `retrieval.originalQuery`
+is always the raw last user message, `retrieval.searchQuery` is what actually
+went to the agent, and `retrieval.rewritten` is `true` only when they differ.
 
 The response the browser sees is still a single streamed body with the same
 framing protocol as before:
@@ -322,6 +357,13 @@ chart dropped into the conversation matches the Explorer's.
 - **Free Edition constraints handled.** One Vector Search endpoint; Delta Sync
   (not Direct Vector Access, which Free Edition doesn't support); pay-per-token
   Foundation Model endpoints for both embeddings and chat.
+- **Why condense follow-ups before retrieval instead of trusting the agent?**
+  The agent loop *can* reformulate a vague follow-up into a better search
+  query on its own, but there's no guarantee it does, and finding out costs a
+  full non-streaming round-trip after retrieval has already started on a bad
+  query. A dedicated condensation step (`lib/query-rewrite.ts`) is cheaper
+  (`maxTokens: 60`), runs before retrieval rather than discovered mid-loop,
+  and degrades safely to the raw question on any failure.
 
 ---
 
@@ -339,3 +381,6 @@ chart dropped into the conversation matches the Explorer's.
   the old fixed candidate-pool/top-k pipeline) are unused now that
   `lib/agent.ts` drives retrieval — left in place rather than deleted, since
   `rerankSources` / `applyRelevanceFloor` from the same file are still live.
+  Follow-up condensation for the agent path is a separate, newer mechanism:
+  `lib/query-rewrite.ts`'s `rewriteQuery`, wired into `route.ts` ahead of
+  `runAgent` — it does not touch `RAG_QUERY_REWRITE` or any `lib/rag.ts` code.
